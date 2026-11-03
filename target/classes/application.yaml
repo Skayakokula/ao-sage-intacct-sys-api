@@ -1,0 +1,11 @@
+app:
+  name: "ao-sage-intacct-sys-api"
+  
+http:
+  port: "8082"
+ 
+request:
+  host: "api.intacct.com"
+  path: "/ia/xml/xmlgw.phtml"
+  port: "443"
+  

@@ -1,0 +1,10 @@
+##################
+#  Sage Intacct  #
+##################
+sage:
+  senderId: "alpha-omegainc"
+  companyId: "alpha-omegainc-imp"
+  userId: "nttdatawsu"
+  
+http:
+  port: "8082"

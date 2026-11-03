@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:secure-properties="http://www.mulesoft.org/schema/mule/secure-properties"
+      xmlns:os="http://www.mulesoft.org/schema/mule/os"
+      xmlns:http="http://www.mulesoft.org/schema/mule/http"
+      xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
+      xmlns="http://www.mulesoft.org/schema/mule/core"
+      xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd 
+        http://www.mulesoft.org/schema/mule/core
+        http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+        http://www.mulesoft.org/schema/mule/http
+        http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+        http://www.mulesoft.org/schema/mule/ee/core
+        http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd
+http://www.mulesoft.org/schema/mule/os http://www.mulesoft.org/schema/mule/os/current/mule-os.xsd
+http://www.mulesoft.org/schema/mule/secure-properties http://www.mulesoft.org/schema/mule/secure-properties/current/mule-secure-properties.xsd">
+
+    <!-- ========================= -->
+    <!-- Global HTTP Configuration -->
+    <!-- ========================= -->
+    <http:listener-config name="HTTP_Listener_Config">
+        <http:listener-connection
+            host="0.0.0.0"
+            port="${http.port}" readTimeout="300000"/>
+    </http:listener-config>
+    <http:request-config name="Sage_Intacct_HTTP_Config">
+        <http:request-connection
+            protocol="HTTPS"
+            host="${request.host}">
+			<reconnection >
+				<reconnect frequency="5000" count="3" />
+			</reconnection>
+		</http:request-connection>
+    </http:request-config>
+    <!-- Token cache -->
+	<os:object-store name="Sage_Token_ObjectStore" doc:name="Object store" doc:id="26fbc9e4-4a1b-48ca-b892-78881e260012" entryTtl="1" entryTtlUnit="HOURS" expirationInterval="10" />
+	<configuration-properties doc:name="Configuration properties" doc:id="f486392b-1553-44b4-8ff1-b5c5b99f1d97" file="application.yaml" />
+	<configuration-properties doc:name="Configuration properties" doc:id="8b5d5718-6362-4d2a-92d4-66e489af701e" file="${mule.env}.yaml" />
+	<secure-properties:config name="Secure_Properties_Config" doc:name="Secure Properties Config" doc:id="6dce0fe6-4852-4323-b2a0-d98b898412e8" file="${mule.env}-secure.yaml" key="${mule.key}" />
+    
+
+</mule>

@@ -1,0 +1,14 @@
+##################
+#  Sage Intacct  #
+##################
+sage:
+  senderId: "alpha-omegainc"
+  companyId: "alpha-omegainc-imp"
+  userId: "nttdatawsu"
+  
+http:
+  port: "8082"
+  
+sage-sys:
+  client_id: ["0oa1pa4i0trMyCYze358", "0oa1pa4i0trMyCYze359"]
+  client_secret: ["XPLAjsHfLPN7U7iPzqVqZod4_QF6hJ", "XPLAjsHfLPN7U7iPzqVqZod4_RGtfd"]

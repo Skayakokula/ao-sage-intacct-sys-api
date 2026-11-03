@@ -1,0 +1,397 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:http="http://www.mulesoft.org/schema/mule/http"
+      xmlns:os="http://www.mulesoft.org/schema/mule/os"
+      xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
+      xmlns="http://www.mulesoft.org/schema/mule/core"
+      xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+
+      xsi:schemaLocation="
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd 
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd 
+        http://www.mulesoft.org/schema/mule/core
+        http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+
+        http://www.mulesoft.org/schema/mule/http
+        http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+
+        http://www.mulesoft.org/schema/mule/os
+        http://www.mulesoft.org/schema/mule/os/current/mule-os.xsd
+
+        http://www.mulesoft.org/schema/mule/ee/core
+        http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd">
+
+    <flow name="sage-intacct-api-operation-flow" doc:id="ab34c04a-7b09-45bc-a9d1-e5ca1efa5d56">
+		<flow-ref doc:name="set-common-properties-flow" doc:id="b79c083a-89e4-4cfe-a986-a004df8807e1" name="commons-properties-flow"/>
+		<flow-ref doc:name="sage-intacct-vendor-operation-check-flow-ref" doc:id="d1cd4bd6-1819-426d-8750-e73414ad83a2" name="sage-intacct-vendor-operation-check-flow"/>
+        <choice>
+
+            <when expression="#[vars.operationType == 'querylist' and vars.entity == &quot;vendor&quot;]">
+
+                <ee:transform doc:name="Build Sage List Request">
+                    <ee:message>
+                        <ee:set-payload
+                            resource="dw/build-sage-list-request.dwl"/>
+                    </ee:message>
+                </ee:transform>
+
+
+                <flow-ref name="common-sage-intaact-invoke-request-connector" doc:name="sage-request-connector"/>
+				<ee:transform doc:name="Final Response" doc:id="9f1dbbff-5e4e-42b3-8f92-be7cd2f1669e" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+  locationId: vars.locationId,
+  entity: vars.entity,
+  modifiedFromDate: vars.requestPayload.modifiedFrom,
+  data: payload
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+
+            
+</when>
+
+<when expression="#[vars.operationType == 'create' and vars.entity == &quot;podocument&quot;]">
+    <ee:transform doc:name="Build PO Update Request"
+                  doc:id="d3a49e36-bffe-4654-b355-184c1e8654ed">
+        <ee:message>
+            <ee:set-payload><![CDATA[%dw 2.0
+output application/xml
+---
+{
+    request: {
+        control: {
+            senderid: p("sage.senderId"),
+            password: p("secure::sage.senderPassword"),
+            controlid: uuid(),
+            uniqueid: false,
+            dtdversion: "3.0",
+            includewhitespace: false
+        },
+        operation: {
+            authentication: {
+                sessionid: vars.sessionId
+            },
+            content: function @("controlid": uuid()): payload.POrders map (poOrder) -> {
+    create_potransaction: {
+            transactiontype: poOrder.Category,
+            datecreated: {
+                year: ((poOrder.POrderDate default "2026-10-01") as Date).year,
+                month: ((poOrder.POrderDate default "2026-10-01") as Date).month,
+                day: ((poOrder.POrderDate default "2026-10-01") as Date).day
+            },
+            vendorid: poOrder.VendorExternalRef default "",
+            documentno: poOrder.POrderNumber default "",
+            returnto: {
+                contactname: poOrder.VendorCompanyName default ""
+            },
+            payto: {
+                contactname: poOrder.VendorCompanyName default ""
+            },
+            projectid: poOrder.JobId default "",
+            potransitems: {
+                potransitem: poOrder.LineItems map {
+                    itemid: $.ExternalRef default "",
+                    itemdesc: $.Description default "",
+                    quantity: $.Quantity default 0,
+                    unit: "Box",
+                    price: $.Estimate default 0,
+                    projectid: $.JobId default "",
+                    taskid: $.Activity default "",
+                    costtypeid: $.CostCategory default "",
+                }
+            }
+        }
+}
+        }
+    }
+}]]></ee:set-payload>
+        </ee:message>
+    </ee:transform>
+
+    <flow-ref
+        doc:name="sage-request-connector"
+        doc:id="e576a566-ed43-4dce-b8d8-03d7cb660ae3"
+        name="common-sage-intaact-invoke-request-connector"/>
+
+    <ee:transform doc:name="Extract PO Update Result"
+                  doc:id="be477ac0-b8f7-4ded-8174-89bb2212496f">
+        <ee:message>
+            <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+payload.response.operation.result]]></ee:set-payload>
+        </ee:message>
+    </ee:transform>
+
+    <logger
+        level="INFO"
+        doc:name="Po Update End Logger"
+        doc:id="1ce51522-f650-4faa-bdbf-3d78a595d3e0"
+        message='#[payload]'/>
+</when>
+<when expression="#[vars.operationType == 'read' and vars.entity == &quot;vendor&quot;]">
+                <set-variable
+                    variableName="detailResponses"
+                    value="#[[]]" doc:name="var detailResponse"/>
+
+
+                <foreach collection="#[vars.requestPayload.ids]">
+
+                    <set-variable
+                        variableName="currentId"
+                        value="#[payload]" doc:name="var currentId"/>
+
+
+                    <ee:transform doc:name="Build Sage Detail Request">
+                        <ee:message>
+                            <ee:set-payload
+                                resource="dw/build-sage-detail-request.dwl"/>
+                        </ee:message>
+                    </ee:transform>
+
+
+                    <flow-ref name="common-sage-intaact-invoke-request-connector" doc:name="sage-request-connector"/>
+                    <set-variable
+                        variableName="detailResponses"
+                        value="#[%dw 2.0&#10;output application/json&#10;---&#10;vars.detailResponses ++ [payload]]" doc:name="var detailResponse"/>
+
+                </foreach>
+				<ee:transform doc:name="Final Response" doc:id="e6b726c5-8c42-4ae2-9bfb-e8515e97359c" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+  locationId: vars.locationId,
+  entity: vars.entity,
+  requestedCount: sizeOf(vars.requestPayload.ids),
+  processedCount: sizeOf(vars.detailResponses),
+  data: vars.detailResponses
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+            
+</when>
+
+            			<when expression="#[vars.operationType == 'query' and vars.entity == &quot;vendor&quot;]">
+				<ee:transform doc:name="Build Sage Get External Ref Request" doc:id="f1a1f1b6-12cb-48a9-bb21-5fb1b7933543" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/xml
+
+var entityConfig = {
+
+    vendor: {
+        objectName: "VENDOR",
+        operation: "read"
+    }
+
+}
+
+var config = entityConfig[vars.entity]
+
+---
+{
+    request: {
+        control: {
+            senderid: p("sage.senderId"),
+            password: p("secure::sage.senderPassword"),
+            controlid: uuid(),
+            uniqueid: false,
+            dtdversion: "3.0",
+            includewhitespace: false
+        },
+        operation: {
+            authentication: {
+                sessionid: vars.sessionId
+            },
+            content: {
+                function @(controlid: uuid()): {
+                    read: {
+                        object: config.objectName,
+                        keys: vars.externalRef,
+                        fields: "*"
+                    }
+                }
+            }
+        }
+    }
+}
+]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+				<flow-ref doc:name="sage-request-connector" doc:id="6b60f3c9-b4ec-4562-8899-cf6d6a13ba37" name="common-sage-intaact-invoke-request-connector" />
+				<ee:transform doc:name="xml to json" doc:id="4b1ce923-e0df-46e8-a2ca-1a4ec22084f4">
+					<ee:message>
+						<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+payload]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+				<ee:transform doc:name="final response get external Id ref" doc:id="6253cb23-619a-44b2-b773-ff8e31e4ed89" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+  locationId: vars.locationId,
+  entity: vars.entity,
+  externalRef: vars.externalRef,
+  data: payload.response.operation.result.data
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</when>
+			<when expression="#[vars.operationType == 'update' and vars.entity == &quot;vendor&quot;]">
+				<ee:transform doc:name="Build Sage Vendor Update Request" doc:id="f26be04b-0838-450c-b02c-3b01d0338829" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/xml
+
+var entityConfig = {
+    vendor: {
+        objectName: "VENDOR",
+        operation: "update",
+        data: {
+            RECORDNO: vars.externalRef,
+            VENDORID: vars.vendorId,
+            DASH_VENDOR_ID: vars.dashVendorId
+        }
+    }
+}
+
+var config = entityConfig[vars.entity]
+
+---
+{
+    request: {
+        control: {
+            senderid: p("sage.senderId"),
+            password: p("secure::sage.senderPassword"),
+            controlid: uuid(),
+            uniqueid: false,
+            dtdversion: "3.0",
+            includewhitespace: false
+        },
+        operation: {
+            authentication: {
+                sessionid: vars.sessionId
+            },
+            content: {
+                function @(controlid: uuid()): {
+                    (config.operation): {
+                        (config.objectName): config.data
+                    }
+                }
+            }
+        }
+    }
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+				<flow-ref doc:name="sage-request-connector" doc:id="f4a9df79-8ab7-4953-b9d1-97af872440df" name="common-sage-intaact-invoke-request-connector" />
+				<ee:transform doc:name="xml to json" doc:id="efd9d2bd-637f-4060-9588-577e1eeb7cf4">
+					<ee:message>
+						<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+payload]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+				<ee:transform doc:name="final response vendor payload" doc:id="6d8c26f8-8c32-4225-a34c-7485ee6eac70" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+  locationId: vars.locationId,
+  entity: vars.entity,
+  externalRef: vars.requestPayload.modifiedFrom,
+  data: payload
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</when>
+			<otherwise>
+                <raise-error
+                    type="APP:INVALID_OPERATION"
+                    description="Supported operations are list and details"/>
+            </otherwise>
+        </choice>
+		<logger level="INFO" doc:name="Logger" doc:id="69dd7c29-861c-4ba3-bb22-33baccae20c1" message="#[payload]"/>
+    
+</flow>
+    <sub-flow name="get-sage-session-flow">
+        <set-variable
+            variableName="sessionCacheKey"
+            value="#['sage-session-' ++ (vars.locationId default &quot;&quot;)]"/>
+        <try>
+            <os:retrieve
+                objectStore="Sage_Token_ObjectStore"
+                key="#[vars.sessionCacheKey]"
+                target="cachedSessionId">
+				<os:default-value ><![CDATA[#[""]]]></os:default-value>
+			</os:retrieve>
+            <error-handler>
+                <on-error-continue
+                    type="OS:KEY_NOT_FOUND">
+					<logger level="INFO" doc:name="Logger" doc:id="21368386-ba82-4d47-8d5d-7b77795c901a" message='#["The Session key is not present or expired"]'/>
+
+                </on-error-continue>
+            </error-handler>
+        </try>
+        <choice>
+            <when expression='#[!isEmpty(vars.cachedSessionId)]'>
+                <set-variable
+                    variableName="sessionId"
+                    value="#[vars.cachedSessionId]"/>
+            </when>
+			<otherwise >
+				<flow-ref name="prepare-sage-intacct-session-id-payload" doc:name="prepare-sage-intacct-session-id-payload-ref" doc:id="d05d784f-c4db-4819-935e-435999449211"/>
+				<flow-ref doc:name="generate-sage-session-flow" doc:id="ff5373dc-0992-4215-aeff-20f10624904d" name="generate-sage-session-flow"/>
+			</otherwise>
+        
+</choice>
+    </sub-flow>
+	<sub-flow name="sage-intacct-vendor-operation-check-flow" doc:id="cb677b38-d460-438a-9f44-fbb13492567c" >
+		<choice doc:name="Choice" doc:id="7c7912d3-c5bc-4fa5-83b1-a456545285d0" >
+			<when expression="#[vars.operationType == 'query' or vars.operationType == 'update']">
+				<ee:transform doc:name="Set Required vendor vars" doc:id="5862b658-a229-4717-b046-ca35d5a6ec8b">
+					<ee:message>
+					</ee:message>
+					<ee:variables >
+						<ee:set-variable variableName="externalRef" ><![CDATA[%dw 2.0
+output application/json
+---
+payload.Vendors[0].ExternalRef]]></ee:set-variable>
+						<ee:set-variable variableName="vendorId" ><![CDATA[attributes.queryParams.vendorId]]></ee:set-variable>
+						<ee:set-variable variableName="dashVendorId" ><![CDATA[attributes.queryParams.dashVendorId]]></ee:set-variable>
+					</ee:variables>
+				</ee:transform>
+				<flow-ref doc:name="prepare-sage-intacct-session-id-payload-ref" doc:id="f1e28d00-7d7e-40a2-81ff-7b22bb456fe4" name="prepare-sage-intacct-session-id-payload"/>
+				<flow-ref doc:name="invoke-request-connector" doc:id="6d329ea4-070e-4ef5-8ad4-0c34ba2df7ae" name="common-sage-intaact-invoke-request-connector"/>
+				<ee:transform doc:name="xml to json" doc:id="41a57ea9-f8eb-4357-a0dd-c62a0ccc4fdc" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+payload]]></ee:set-payload>
+					</ee:message>
+					<ee:variables />
+				</ee:transform>
+				<set-variable value="#[payload.response.operation.result.data.api.sessionid]" doc:name="session-id-variable" doc:id="671fb7a4-51c4-4250-b980-56e0b9db092d" variableName="sessionId" />
+				<set-payload value="#[vars.requestPayload]" doc:name="request-payload" doc:id="2b03a761-80b5-4462-a7ee-c3747139ceb5" />
+			</when>
+			<otherwise >
+				<flow-ref doc:name="get-sage-intacct-session-flow" doc:id="12998f5f-b767-46ff-b13d-ab66fbd579a0" name="get-sage-session-flow" />
+			</otherwise>
+		</choice>
+	</sub-flow>
+
+</mule>

@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:os="http://www.mulesoft.org/schema/mule/os" xmlns:http="http://www.mulesoft.org/schema/mule/http"
+	xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
+	xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+http://www.mulesoft.org/schema/mule/os http://www.mulesoft.org/schema/mule/os/current/mule-os.xsd">
+	<sub-flow name="prepare-sage-intacct-session-id-payload" doc:id="f58dd8a5-734f-4856-b7f9-04186b9c5100" >
+		<ee:transform doc:name="Build Session Request" doc:id="15f88293-7c53-4e9e-aa90-8310cba7b5f1">
+			<ee:message>
+				<ee:set-payload resource="dw/build-sage-session-request.dwl" />
+			</ee:message>
+		</ee:transform>
+	</sub-flow>
+	<sub-flow name="generate-sage-session-flow" doc:id="5fcec7dd-ede9-4325-8f3a-d1ccf7b6a35d" >
+		<flow-ref doc:name="sage-request-connector" doc:id="c565e3a0-298d-4839-81dd-6a47410a5ce9" name="common-sage-intaact-invoke-request-connector"/>
+		<ee:transform doc:name="xml to json" doc:id="b4536360-8133-4241-a56c-ab9a62099b26" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+payload]]></ee:set-payload>
+			</ee:message>
+			<ee:variables >
+			</ee:variables>
+		</ee:transform>
+		<set-variable value="#[payload.response.operation.result.data.api.sessionid]" doc:name="session-id-variable" doc:id="bf825457-fb88-4480-ad87-7c41567706d6" variableName="sessionId" />
+		<os:store doc:name="store-session-id" doc:id="29f77d90-2ad2-4d7f-861e-213faf85c81a" key="#[vars.sessionCacheKey]" objectStore="Sage_Token_ObjectStore" >
+			<os:value ><![CDATA[#[vars.sessionId]]]></os:value>
+		</os:store>
+		<set-payload value="#[vars.requestPayload]" doc:name="request-payload" doc:id="868d68a2-9039-4ebe-993a-157e689de2f4" />
+	</sub-flow>
+</mule>

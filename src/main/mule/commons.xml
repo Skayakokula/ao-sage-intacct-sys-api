@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:http="http://www.mulesoft.org/schema/mule/http"
+	xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd">
+<sub-flow name="common-sage-intaact-invoke-request-connector" doc:id="33ab5820-99f1-4675-a715-e776d6d809a5">
+		<until-successful maxRetries="1" doc:name="Until Successful" doc:id="c184e660-62ed-4538-a8ad-3e8a637f9837" millisBetweenRetries="600">
+			<try doc:name="Try" doc:id="7199c95f-4b31-4f60-9e16-611e28c720d9" >
+				<http:request method="POST" config-ref="Sage_Intacct_HTTP_Config" path="${request.path}">
+			<http:headers><![CDATA[#[output application/java
+---
+{
+	"Content-Type" : "application/xml"
+}]]]></http:headers>
+
+
+        </http:request>
+				<error-handler >
+					<on-error-propagate enableNotifications="true" logException="true" doc:name="On Error Propagate" doc:id="8606b038-dffa-4338-862e-a97930b3bf08" type="ANY">
+						<logger level="INFO" doc:name="Logger" doc:id="9afec989-2de3-4978-9d33-04be122b7540" message="#[output application/json &#10;--- &#10;error]"/>
+					</on-error-propagate>
+				</error-handler>
+			</try>
+		</until-successful>
+
+
+    </sub-flow>
+	<sub-flow name="commons-properties-flow" doc:id="b9ce3616-c582-49fb-83c4-6ae241c1037f" >
+		<set-variable value="#[attributes.queryParams.locationId]" doc:name="var locationId" doc:id="c724aecc-dac6-4856-9e77-f7789aeabac7" variableName="locationId" />
+		<set-variable value="#[lower(attributes.uriParams.entity)]" doc:name="var entity" doc:id="702108c0-8056-4e03-b213-9c2e0cdea52b" variableName="entity" />
+		<set-variable value="#[lower(attributes.queryParams.operation)]" doc:name="var operationType" doc:id="6d21757b-346d-473e-a7c1-0c5e4deafdbb" variableName="operationType" />
+		<set-variable value="#[payload]" doc:name="var requestPayload" doc:id="b415129f-61c5-4101-984f-4f6e980d687e" variableName="requestPayload" />
+	</sub-flow>
+
+</mule>
+	
